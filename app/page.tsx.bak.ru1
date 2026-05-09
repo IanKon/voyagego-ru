@@ -388,65 +388,42 @@ export default function Page() {
   };
 
   // ---------- search handlers ----------
-  // RU site does NOT do its own search — we redirect directly to the partner
-  // (Aviasales for RUB, Trip.com for EUR) with the user's query pre-filled.
-  // This is the meta-search pattern: we own the discovery, partner owns the booking.
-  const searchFlights = () => {
+  const searchFlights = async () => {
     if (!flFrom || !flTo) return;
-    const fc = (flFromCode || flFrom.slice(0, 3)).toUpperCase();
-    const tc = (flToCode || flTo.slice(0, 3)).toUpperCase();
-
-    // Use Aviasales for RUB currency, Trip.com for EUR
-    const useAviasales = cur === "RUB";
-
-    let url: string;
-    if (useAviasales) {
-      // Aviasales URL format: /search/<from><dd><mm><to><pax>?marker=...
-      // For round-trip add return date in same compact format.
-      const dd = flDate ? flDate.slice(8, 10) + flDate.slice(5, 7) : "";
-      let path = `${fc}${dd}${tc}`;
-      if (tripType === "return" && flReturn) {
-        const rdd = flReturn.slice(8, 10) + flReturn.slice(5, 7);
-        path += rdd;
-      }
-      path += "1"; // 1 passenger by default
-      url = `https://www.aviasales.ru/search/${path}?marker=${P.tp.marker}`;
-    } else {
-      // Trip.com format
-      let u = `https://www.trip.com/flights/?dcity=${fc}&acity=${tc}&ddate=${flDate}&Allianceid=${P.trip.a}&SID=${P.trip.s}`;
-      if (tripType === "return" && flReturn) {
-        u += `&rdate=${flReturn}&triptype=rt`;
-      }
-      url = u;
+    const fc = flFromCode || flFrom.slice(0, 3).toUpperCase();
+    const tc = flToCode || flTo.slice(0, 3).toUpperCase();
+    const rd = tripType === "oneway" ? "" : flReturn;
+    setResultsTitle(`${flFrom} → ${flTo}`);
+    setResultsHTML(`<div class="results-loading">${t(lang, "searching")}</div>`);
+    setResultsOpen(true);
+    try {
+      let url = `${API_BASE}/api/search-return?origin=${fc}&dest=${tc}&date=${flDate}&lang=${lang}`;
+      if (rd) url += `&return_date=${rd}`;
+      const res = await fetch(url);
+      const data: TwoWayData = await res.json();
+      renderTwoWay(data, flFrom, flTo);
+    } catch {
+      setResultsHTML('<div class="result-empty">Error. Try again.</div>');
     }
-    window.open(url, "_blank");
   };
 
   const searchTrains = () => {
-    const f = trFrom.split(",")[0].trim();
-    const t = trTo.split(",")[0].trim();
+    const f = trFrom.split(",")[0].trim().toLowerCase().replace(/ /g, "-");
+    const t = trTo.split(",")[0].trim().toLowerCase().replace(/ /g, "-");
     if (!f || !t) return;
-    // Tutu.ru via Travelpayouts deep link
-    window.open(`https://tutu.tpk.mx/wgJomzCX?utm_source=voyagego&utm_medium=search&from=${encodeURIComponent(f)}&to=${encodeURIComponent(t)}`, "_blank");
+    window.open(`https://omio.sjv.io/c/7271483/861892/7385?u=https%3A%2F%2Fwww.omio.com%2Ftravel%2F${f}%2F${t}`, "_blank");
   };
 
   const searchHotels = () => {
     const c = htCity.split(",")[0].trim();
     if (!c) return;
-    if (cur === "RUB") {
-      // Ostrovok via Travelpayouts (Russian audience)
-      window.open(`https://ostrovok.tpk.mx/p2jJ3bO1?utm_source=voyagego&q=${encodeURIComponent(c)}&checkin=${htIn}&checkout=${htOut}`, "_blank");
-    } else {
-      // Hotellook for EUR
-      window.open(`https://search.hotellook.com/hotels?destination=${encodeURIComponent(c)}&checkIn=${htIn}&checkOut=${htOut}&currency=${cur.toLowerCase()}&marker=${P.tp.marker}`, "_blank");
-    }
+    window.open(`https://search.hotellook.com/hotels?destination=${encodeURIComponent(c)}&checkIn=${htIn}&checkOut=${htOut}&currency=${cur.toLowerCase()}&marker=${P.tp.marker}`, "_blank");
   };
 
   const searchTours = () => {
     const c = toCity.split(",")[0].trim();
     if (!c) return;
-    // Tripster — Russian-language tours and excursions worldwide
-    window.open(`https://experience.tripster.ru/search/?q=${encodeURIComponent(c)}&partner=voyagego`, "_blank");
+    window.open(`https://www.getyourguide.com/s/?q=${encodeURIComponent(c)}&partner_id=${P.gyg.id}&utm_medium=online_publisher`, "_blank");
   };
 
   const searchCars = () => {
